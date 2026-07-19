@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notification Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+    h1 { margin-bottom: 20px; }
+    .container { max-width: 700px; margin: 0 auto; }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .card h2 { font-size: 16px; margin-bottom: 12px; }
+
+    .status {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+
+    input, textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #fff;
+      margin-right: 8px;
+    }
+    .btn-connect { background: #28a745; }
+    .btn-disconnect { background: #dc3545; }
+    .btn-send { background: #007bff; }
+
+    .notification-item {
+      background: #e8f4fd;
+      border-left: 4px solid #007bff;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+    }
+    .notification-item .type { font-size: 11px; color: #666; text-transform: uppercase; }
+    .notification-item .title { font-weight: bold; margin: 4px 0; }
+    .notification-item .body { font-size: 14px; color: #333; }
+    .notification-item .time { font-size: 11px; color: #999; margin-top: 4px; }
+
+    #notifications:empty::after {
+      content: "No notifications yet. Send one using the form above!";
+      color: #999;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔔 Notification Demo</h1>
+
+    <!-- Connection -->
+    <div class="card">
+      <h2>1. Connect with JWT</h2>
+      <input type="text" id="tokenInput" placeholder="Paste JWT token here (run: node scripts/generate-token.js)">
+      <div>
+        <button class="btn-connect" onclick="connect()">Connect</button>
+        <button class="btn-disconnect" onclick="disconnect()">Disconnect</button>
+        <span id="status" class="status disconnected">Disconnected</span>
+      </div>
+    </div>
+
+    <!-- Send notification -->
+    <div class="card">
+      <h2>2. Send a Test Notification</h2>
+      <input type="text" id="userId" placeholder="User ID (e.g. usr_1)">
+      <input type="text" id="notifTitle" placeholder="Title" value="Order Shipped!">
+      <textarea id="notifBody" rows="2" placeholder="Body">Your package #8821 has been handed to the carrier.</textarea>
+      <button class="btn-send" onclick="sendNotification()">Send Notification</button>
+    </div>
+
+    <!-- Received notifications -->
+    <div class="card">
+      <h2>3. Live Notifications <span id="badge"></span></h2>
+      <div id="notifications"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    let socket = null;
+    let count = 0;
+
+    const statusEl = document.getElementById('status');
+    const badgeEl = document.getElementById('badge');
+    const notifContainer = document.getElementById('notifications');
+
+    function connect() {
+      const token = document.getElementById('tokenInput').value.trim();
+      if (!token) return alert('Paste a JWT token first');
+
+      socket = io(window.location.origin, { auth: { token } });
+
+      socket.on('connect', () => {
+        statusEl.textContent = 'Connected';
+        statusEl.className = 'status connected';
+      });
+
+      socket.on('notification:new', (data) => {
+        count++;
+        badgeEl.textContent = '(' + count + ')';
+
+        const item = document.createElement('div');
+        item.className = 'notification-item';
+        item.innerHTML =
+          '<div class="type">' + data.type + '</div>' +
+          '<div class="title">' + data.title + '</div>' +
+          '<div class="body">' + data.body + '</div>' +
+          '<div class="time">' + new Date(data.created_at).toLocaleString() + '</div>';
+
+        notifContainer.prepend(item);
+
+        // acknowledge receipt
+        socket.emit('notification:ack', { id: data.id });
+      });
+
+      socket.on('disconnect', () => {
+        statusEl.textContent = 'Disconnected';
+        statusEl.className = 'status disconnected';
+      });
+
+      socket.on('connect_error', (err) => {
+        alert('Connection failed: ' + err.message);
+        statusEl.textContent = 'Disconnected';
+        statusEl.className = 'status disconnected';
+      });
+    }
+
+    function disconnect() {
+      if (socket) socket.disconnect();
+    }
+
+    async function sendNotification() {
+      const token = document.getElementById('tokenInput').value.trim();
+      const userId = document.getElementById('userId').value.trim();
+      const title = document.getElementById('notifTitle').value.trim();
+      const body = document.getElementById('notifBody').value.trim();
+
+      if (!token || !userId || !title || !body) return alert('Fill in all fields');
+
+      const res = await fetch('/api/v1/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          type: 'ORDER_SHIPPED',
+          title: title,
+          body: body,
+          data: { demo: true },
+        }),
+      });
+
+      const result = await res.json();
+      if (!result.success) alert('Error: ' + result.message);
+    }
+  </script>
+</body>
+</html>

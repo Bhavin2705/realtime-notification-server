@@ -6,7 +6,13 @@ const logger = require('../utils/logger');
 
 const db = new Pool({
   connectionString: env.DATABASE_URL,
-  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: env.NODE_ENV === 'production' && !env.DATABASE_URL.includes('localhost')
+    ? { rejectUnauthorized: false }
+    : false,
+});
+
+db.on('error', (err) => {
+  logger.error('PostgreSQL Pool Error: ' + err.message);
 });
 
 const initDatabase = async () => {
@@ -18,7 +24,7 @@ const initDatabase = async () => {
       logger.info('Database schema initialized successfully');
     }
   } catch (err) {
-    logger.error('Database schema initialization error', err);
+    logger.error('Database schema initialization warning: ' + err.message);
   }
 };
 

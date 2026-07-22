@@ -13,8 +13,14 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
-// serve the demo client
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// serve the demo client without static caching so updates show immediately
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  },
+}));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

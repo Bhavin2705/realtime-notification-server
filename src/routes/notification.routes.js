@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/auth.middleware');
 
 const router = Router();
 
+router.get('/token', controller.generateToken);
 router.post('/send', authMiddleware, controller.send);
 router.get('/unread', authMiddleware, controller.getUnread);
 router.patch('/:id/read', authMiddleware, controller.markRead);

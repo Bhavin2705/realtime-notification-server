@@ -1,4 +1,16 @@
+const jwt = require('jsonwebtoken');
+const env = require('../config/env');
 const notificationService = require('../services/notification.service');
+
+const generateToken = async (req, res, next) => {
+  try {
+    const userId = req.query.user_id || 'usr_1';
+    const token = jwt.sign({ user_id: userId }, env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ success: true, token, user_id: userId });
+  } catch (err) {
+    next(err);
+  }
+};
 
 const send = async (req, res, next) => {
   try {
@@ -59,4 +71,4 @@ const markAllRead = async (req, res, next) => {
   }
 };
 
-module.exports = { send, getUnread, markRead, markAllRead };
+module.exports = { generateToken, send, getUnread, markRead, markAllRead };

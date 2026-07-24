@@ -460,12 +460,17 @@
       badgeEl.textContent = count ? '(' + count + ')' : '';
     }
 
-    function generateDemoToken() {
-      const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-      const payload = btoa(JSON.stringify({ user_id: "usr_1", iat: Math.floor(Date.now() / 1000) }));
-      const mockSig = "demo-signature";
-      const token = `${header}.${payload}.${mockSig}`;
-      document.getElementById('tokenInput').value = token;
+    async function generateDemoToken() {
+      try {
+        const userId = document.getElementById('userId') ? document.getElementById('userId').value.trim() : 'usr_1';
+        const res = await fetch(`/api/v1/notifications/token?user_id=${encodeURIComponent(userId || 'usr_1')}`);
+        const data = await res.json();
+        if (data.token) {
+          document.getElementById('tokenInput').value = data.token;
+        }
+      } catch (err) {
+        console.error('Failed to fetch signed token:', err);
+      }
     }
 
     function setPreset(type, title, body) {

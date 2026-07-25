@@ -42,6 +42,20 @@ const getUnread = async (req, res, next) => {
   }
 };
 
+const getAll = async (req, res, next) => {
+  try {
+    const userId = req.user.user_id;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
+
+    const result = await notificationService.getAllNotifications(userId, page, limit);
+
+    res.json({ success: true, unread_count: result.unread_count, data: result.data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const markRead = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -71,4 +85,4 @@ const markAllRead = async (req, res, next) => {
   }
 };
 
-module.exports = { generateToken, send, getUnread, markRead, markAllRead };
+module.exports = { generateToken, send, getUnread, getAll, markRead, markAllRead };

@@ -434,7 +434,8 @@
               Live Activity Stream <span id="badge" class="badge-count"></span>
             </div>
             <div class="btn-group">
-              <button class="btn-secondary btn-sm" onclick="fetchUnreadREST()">Fetch Unread (REST)</button>
+              <button class="btn-secondary btn-sm" onclick="fetchUnreadREST()">Unread Only</button>
+              <button class="btn-secondary btn-sm" onclick="fetchAllREST()">All History</button>
               <button class="btn-secondary btn-sm" onclick="markAllReadREST()">Mark All Read</button>
             </div>
           </div>
@@ -520,6 +521,9 @@
       item.id = `item-${data.id}`;
       
       const timeStr = data.created_at ? new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleTimeString();
+      const actionHtml = data.is_read
+        ? `<span style="font-size: 11px; color: var(--text-muted);">✓ Read</span>`
+        : `<button class="btn-secondary btn-sm" onclick="markSingleRead('${data.id}')">Mark Read</button>`;
 
       item.innerHTML = `
         <div class="item-header">
@@ -529,11 +533,33 @@
         <div class="title">${escapeHtml(data.title)}</div>
         <div class="body">${escapeHtml(data.body)}</div>
         <div class="item-actions">
-          <button class="btn-secondary btn-sm" onclick="markSingleRead('${data.id}')">Mark Read</button>
+          ${actionHtml}
         </div>
       `;
 
       notifContainer.prepend(item);
+    }
+
+    async function fetchAllREST() {
+      const token = document.getElementById('tokenInput').value.trim();
+      if (!token) return alert('Please enter or generate a JWT token first.');
+
+      try {
+        const res = await fetch('/api/v1/notifications/all?page=1&limit=20', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          notifContainer.innerHTML = '';
+          updateBadge(result.unread_count);
+          result.data.forEach(item => renderNotificationItem(item));
+        } else {
+          alert('Error: ' + result.message);
+        }
+      } catch (err) {
+        alert('Failed to fetch notification history.');
+      }
     }
 
     async function sendNotification() {

@@ -50,6 +50,31 @@ const getUnreadNotifications = async (userId, page = 1, limit = 20) => {
   return { unread_count: parseInt(unreadCount, 10), data: result.rows };
 };
 
+const getAllNotifications = async (userId, page = 1, limit = 20) => {
+  const offset = (page - 1) * limit;
+
+  const result = await db.query(
+    `SELECT id, type, title, body, data, is_read, created_at
+     FROM notifications
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, limit, offset]
+  );
+
+  let unreadCount = await redis.get(`unread_count:${userId}`);
+  if (unreadCount === null) {
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false',
+      [userId]
+    );
+    unreadCount = parseInt(countResult.rows[0].count, 10);
+    await redis.set(`unread_count:${userId}`, unreadCount, 'EX', 86400);
+  }
+
+  return { unread_count: parseInt(unreadCount, 10), data: result.rows };
+};
+
 const markAsRead = async (id, userId) => {
   const result = await db.query(
     `UPDATE notifications SET is_read = true, updated_at = CURRENT_TIMESTAMP
@@ -75,4 +100,4 @@ const markAllAsRead = async (userId) => {
   await redis.set(`unread_count:${userId}`, 0, 'EX', 86400);
 };
 
-module.exports = { sendNotification, getUnreadNotifications, markAsRead, markAllAsRead };
+module.exports = { sendNotification, getUnreadNotifications, getAllNotifications, markAsRead, markAllAsRead };

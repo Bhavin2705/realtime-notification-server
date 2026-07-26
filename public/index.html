@@ -42,7 +42,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
+      margin-bottom: 20px;
       padding-bottom: 16px;
       border-bottom: 1px solid var(--card-border);
     }
@@ -114,6 +114,46 @@
 
     .status-badge.connected .dot {
       box-shadow: 0 0 8px currentColor;
+    }
+
+    .user-switcher-bar {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .user-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn.active {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--primary);
+      border-color: rgba(59, 130, 246, 0.4);
     }
 
     .grid {
@@ -249,7 +289,7 @@
     }
 
     #notifications:empty::after {
-      content: "No notifications received yet. Connect and send a payload to test live delivery.";
+      content: "No notifications received yet. Connect socket and dispatch an event.";
       display: block;
       padding: 40px 20px;
       text-align: center;
@@ -351,6 +391,23 @@
       </div>
     </header>
 
+    <!-- User Switcher & Multi-User Testing Bar -->
+    <div class="user-switcher-bar">
+      <div style="font-size: 13px; font-weight: 500; color: var(--text-muted);">
+        Select Active User Context:
+      </div>
+      <div class="user-tabs">
+        <button id="tab-usr_1" class="tab-btn active" onclick="switchUser('usr_1')">
+          <svg class="btn-svg" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          User 1 (usr_1)
+        </button>
+        <button id="tab-usr_2" class="tab-btn" onclick="switchUser('usr_2')">
+          <svg class="btn-svg" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          User 2 (usr_2)
+        </button>
+      </div>
+    </div>
+
     <div class="grid">
       <!-- Left Column: Controls -->
       <div>
@@ -363,7 +420,7 @@
             <label for="tokenInput">Bearer JWT Token</label>
             <input type="text" id="tokenInput" placeholder="Paste token or click Generate below">
             <div class="quick-gen">
-              <span style="font-size: 11px; color: var(--text-muted);">User: <strong style="color: var(--text);">usr_1</strong></span>
+              <span style="font-size: 11px; color: var(--text-muted);">Active User: <strong id="activeUserLabel" style="color: var(--primary);">usr_1</strong></span>
               <button type="button" class="btn-secondary btn-sm" onclick="generateDemoToken()">Generate Token</button>
             </div>
           </div>
@@ -450,6 +507,7 @@
   <script>
     let socket = null;
     let count = 0;
+    let currentUserId = 'usr_1';
 
     const statusEl = document.getElementById('status');
     const statusTextEl = document.getElementById('statusText');
@@ -461,10 +519,24 @@
       badgeEl.textContent = count ? '(' + count + ')' : '';
     }
 
+    async function switchUser(userId) {
+      currentUserId = userId;
+      document.getElementById('userId').value = userId;
+      document.getElementById('activeUserLabel').textContent = userId;
+
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      const activeTab = document.getElementById(`tab-${userId}`);
+      if (activeTab) activeTab.classList.add('active');
+
+      if (socket) disconnect();
+      await generateDemoToken();
+      connect();
+    }
+
     async function generateDemoToken() {
       try {
-        const userId = document.getElementById('userId') ? document.getElementById('userId').value.trim() : 'usr_1';
-        const res = await fetch(`/api/v1/notifications/token?user_id=${encodeURIComponent(userId || 'usr_1')}`);
+        const userId = currentUserId || (document.getElementById('userId') ? document.getElementById('userId').value.trim() : 'usr_1');
+        const res = await fetch(`/api/v1/notifications/token?user_id=${encodeURIComponent(userId)}`);
         const data = await res.json();
         if (data.token) {
           document.getElementById('tokenInput').value = data.token;
@@ -491,6 +563,7 @@
       socket.on('connect', () => {
         statusEl.className = 'status-badge connected status';
         statusTextEl.textContent = 'Connected';
+        fetchUnreadREST();
       });
 
       socket.on('notification:new', (data) => {
@@ -600,7 +673,7 @@
 
     async function fetchUnreadREST() {
       const token = document.getElementById('tokenInput').value.trim();
-      if (!token) return alert('Please enter or generate a JWT token first.');
+      if (!token) return;
 
       try {
         const res = await fetch('/api/v1/notifications/unread?page=1&limit=20', {
@@ -612,11 +685,9 @@
           notifContainer.innerHTML = '';
           updateBadge(result.unread_count);
           result.data.forEach(item => renderNotificationItem(item));
-        } else {
-          alert('Error: ' + result.message);
         }
       } catch (err) {
-        alert('Failed to fetch unread notifications.');
+        console.error('Failed to fetch unread notifications:', err);
       }
     }
 
@@ -665,6 +736,7 @@
       return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    // Initialize with default token
     generateDemoToken();
   </script>
 </body>
